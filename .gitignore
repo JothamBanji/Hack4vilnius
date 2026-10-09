@@ -1,0 +1,6 @@
+# Raw data is too big for GitHub - only data/reports.parquet is committed
+*.csv
+*.pkl
+__pycache__/
+.venv/
+.streamlit/secrets.toml
