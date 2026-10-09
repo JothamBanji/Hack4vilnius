@@ -98,7 +98,7 @@ st.line_chart(trend)
 st.subheader("All hotspots")
 cols = ["score", "status_tag", "group", "address", "reports", "reporters", "prev_reports",
         "months_active", "still_open", "median_days_to_close", "reason"]
-st.dataframe(hs[cols], use_container_width=True, hide_index=True)
+st.dataframe(hs[cols], width="stretch", hide_index=True)
 st.download_button("⬇️ Download as CSV", hs[cols].to_csv(index=False).encode("utf-8"),
                    "vilnius_hotspots.csv", "text/csv")
 
