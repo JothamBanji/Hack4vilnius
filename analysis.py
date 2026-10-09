@@ -30,6 +30,14 @@ def add_cells(df: pd.DataFrame, cell_m: int = 150) -> pd.DataFrame:
     return df
 
 
+def best_address(s: pd.Series) -> str:
+    """Most common address that actually names a street (some are just ', LT-01141 Vilnius')."""
+    s = s.dropna().astype(str).str.strip()
+    good = s[~s.str.startswith(",") & (s.str.len() > 12)]
+    pick = good if len(good) else s
+    return pick.mode().iat[0] if len(pick) else ""
+
+
 def score_hotspots(df: pd.DataFrame, as_of: pd.Timestamp, window_days: int = 90,
                    severity: dict | None = None, cell_m: int = 150,
                    min_reporters: int = 2) -> pd.DataFrame:
@@ -49,7 +57,7 @@ def score_hotspots(df: pd.DataFrame, as_of: pd.Timestamp, window_days: int = 90,
                still_open=("is_open", "sum"),
                cell_lat=("cell_lat", "first"),
                cell_lon=("cell_lon", "first"),
-               address=("address", lambda s: s.mode().iat[0] if s.notna().any() else ""),
+               address=("address", best_address),
                example=("text", lambda s: next((t for t in s if t), "")),
                ).reset_index()
     hs = hs[hs.reporters >= min_reporters]
@@ -77,7 +85,10 @@ def score_hotspots(df: pd.DataFrame, as_of: pd.Timestamp, window_days: int = 90,
     hs["score"] = (100 * raw / raw.max()).round(0).astype(int)
 
     hs["status_tag"] = np.select(
-        [hs.prev_reports == 0, hs.trend >= 1.5, hs.months_active >= 8, hs.trend <= 0.67],
+        [(hs.prev_reports == 0) & (hs.reports >= 3),
+         (hs.trend >= 1.5) & (hs.reports >= 5),
+         hs.months_active >= 8,
+         (hs.trend <= 0.67) & (hs.prev_reports >= 5)],
         ["NEW", "GROWING", "RECURRING", "FADING"], default="STABLE")
     hs["reason"] = hs.apply(lambda r: explain(r, window_days), axis=1)
     return hs.sort_values("score", ascending=False).reset_index(drop=True)
@@ -88,7 +99,7 @@ def explain(r, window_days: int) -> str:
     parts = [f"{int(r.reports)} reports from {int(r.reporters)} different residents "
              f"in the last {window_days} days"]
     if r.prev_reports == 0:
-        parts.append("none in the period before (new problem)")
+        parts.append("none in the period before")
     elif r.trend >= 1.5:
         parts.append(f"up {r.trend:.1f}x vs the previous {window_days} days")
     elif r.trend <= 0.67:
